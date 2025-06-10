@@ -22,4 +22,18 @@ describe('AppController (e2e)', () => {
       .expect(200)
       .expect('Hello World!');
   });
+
+  // Additional e2e tests for face-recognition module
+  it('/face-recognition (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/face-recognition')
+      .expect(200);
+  });
+
+  // Additional e2e tests for whatsapp module
+  it('/whatsapp (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/whatsapp')
+      .expect(200);
+  });
 });
