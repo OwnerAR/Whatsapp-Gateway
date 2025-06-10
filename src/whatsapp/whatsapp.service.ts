@@ -10,12 +10,16 @@ import * as path from 'path';
 import * as NodeCache from 'node-cache';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import e from 'express';
 
 const groupCache = new NodeCache();
 
 const authFolder = path.resolve('./auth_info_baileys');
 
 interface OutgoingPayload {
+  from: string | undefined;
+  fromMe?: boolean | undefined;
+  participant?: string | undefined;
   message: string | undefined;
   media?: string;
   mediaType?: string;
@@ -24,8 +28,11 @@ interface OutgoingPayload {
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly baseUrl: string;
+  private readonly apiKey: string;
   constructor(private readonly configService: ConfigService) {
-    this.baseUrl = this.configService.get('API_BASE_URL') || 'http://localhost:3000';
+    this.baseUrl =
+      this.configService.get('API_BASE_URL') || 'http://localhost:3000';
+    this.apiKey = this.configService.get('API_KEY') || '';
   }
   private sock: ReturnType<typeof makeWASocket>;
   private state: any;
@@ -78,6 +85,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.sock.ev.on('messages.upsert', (m) => {
+      if (m.type !== 'notify') return;
       // Jalankan async function tanpa mengembalikan promise ke event handler
       void (async () => {
         if (m.messages) {
@@ -104,17 +112,40 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
             }
 
-            const payload: OutgoingPayload = { message: messageText };
-
-            if (mediaBuffer && mediaType) {
+            const payload: OutgoingPayload = {
+              from: msg.key.remoteJid || undefined,
+              fromMe: msg.key.fromMe || undefined,
+              message: messageText,
+            };
+            if (!msg.key.fromMe) {
+              payload.fromMe = false;
+              payload.participant = msg.key.participant || undefined;
+            }
+            if (mediaBuffer && mediaType === 'image') {
               payload.media = mediaBuffer.toString('base64');
               payload.mediaType = mediaType;
             }
 
-            await axios.post(this.baseUrl, {
-              headers: { 'Content-Type': 'application/json' },
-              data: payload,
-            });
+            try {
+              const response = await axios.post(this.baseUrl, payload, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': this.apiKey,
+                },
+              });
+              if (msg.key.remoteJid && response.status !== 500) {
+                await this.sock.sendMessage(msg.key.remoteJid, {
+                  text: response.data?.message,
+                });
+              }
+            } catch (error) {
+              console.error('Error sending message to API:', error);
+              if (msg.key.remoteJid && error.response.status !== 500) {
+                await this.sock.sendMessage(msg.key.remoteJid, {
+                  text: error.response.data?.message,
+                });
+              }
+            }
           }
         }
       })();
