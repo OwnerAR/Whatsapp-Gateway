@@ -21,10 +21,13 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@tensorflow/tfjs-node": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
     "@whiskeysockets/baileys": "^6.7.18",
+    "axios": "^1.9.0",
     "baileys": "github:WhiskeySockets/Baileys#v6.7.18",
     "canvas": "^3.1.0",
     "node-cache": "^5.1.2",

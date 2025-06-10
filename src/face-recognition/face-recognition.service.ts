@@ -4,7 +4,7 @@ import * as canvas from 'canvas';
 import * as path from 'path';
 
 const { Canvas, Image, ImageData } = canvas;
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
+faceapi.env.monkeyPatch({ Canvas, Image, ImageData } as any);
 
 @Injectable()
 export class FaceRecognitionService implements OnModuleInit {
@@ -51,7 +51,7 @@ export class FaceRecognitionService implements OnModuleInit {
 
   private async recognizeFace(imageBuffer: Buffer) {
     const img = await canvas.loadImage(imageBuffer);
-    const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+    const detection = await faceapi.detectSingleFace(img as any).withFaceLandmarks().withFaceDescriptor();
     if (!detection) {
       return null;
     }

@@ -7,17 +7,16 @@ export class WhatsappController {
 
   @Get('status')
   getStatus(): any {
-    if (this.whatsappService['connectionStatus'] === 'open') {
-      return { status: 'ready' };
-    } else if (this.whatsappService['connectionStatus'] === 'close') {
-      return { qrCode: this.whatsappService['latestQRCode'] };
-    } else {
-      return { status: 'unknown' };
-    }
+    return {
+      status: this.whatsappService['connectionStatus'],
+      qrCode: this.whatsappService['latestQRCode'],
+    };
   }
 
   @Post('send')
-  async sendMessage(@Body() body: { jid: string; message: string }): Promise<any> {
+  async sendMessage(
+    @Body() body: { jid: string; message: string },
+  ): Promise<any> {
     let { jid, message } = body;
     if (!jid.includes('@')) {
       jid = jid + '@s.whatsapp.net';
