@@ -42,10 +42,9 @@ jobs:
         # Tambahkan ke file ci.yml
     - name: Run tests with mock WhatsApp
       run: npm test -- --coverage --testPathIgnorePatterns=e2e
-
-    env:
-        NODE_ENV: test
-        SKIP_WHATSAPP_CONNECTION: true
+      env:
+          NODE_ENV: test
+          SKIP_WHATSAPP_CONNECTION: true
       
     - name: Test
       run: npm test
