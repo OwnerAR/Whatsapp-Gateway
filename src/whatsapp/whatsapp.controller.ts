@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
+import { WAMessageContent } from 'src/common/whatsapp/whatsapp.interface';
 
 @Controller('whatsapp')
 export class WhatsappController {
@@ -15,14 +16,10 @@ export class WhatsappController {
 
   @Post('send')
   async sendMessage(
-    @Body() body: { jid: string; message: string },
+    @Body()
+    body: WAMessageContent,
   ): Promise<any> {
-    const { message } = body;
-    let { jid } = body;
-    if (!jid.includes('@')) {
-      jid = jid + '@s.whatsapp.net';
-    }
-    await this.whatsappService.sendMessage(jid, message);
+    await this.whatsappService.sendMessage(body);
     return { success: true, message: 'Message sent' };
   }
 }

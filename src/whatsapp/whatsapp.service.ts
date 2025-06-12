@@ -6,12 +6,17 @@ import makeWASocket, {
   downloadMediaMessage,
   AuthenticationState,
   AnyRegularMessageContent,
+  WAMessageKey,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as path from 'path';
 import * as NodeCache from 'node-cache';
 import { ConfigService } from '@nestjs/config';
 import axios, { isAxiosError } from 'axios';
+import {
+  QuotedMessage,
+  WAMessageContent,
+} from 'src/common/whatsapp/whatsapp.interface';
 
 const groupCache = new NodeCache();
 
@@ -31,6 +36,16 @@ interface ApiResponse {
   success?: boolean;
 }
 
+// Tambahkan type definition untuk content dengan quoted
+type MessageContentWithQuote = AnyRegularMessageContent & {
+  quoted?: QuotedMessage;
+};
+
+interface ExtendedSocket extends ReturnType<typeof makeWASocket> {
+  // Ganti definisi readMessages menjadi:
+  readMessages(keys: WAMessageKey[]): Promise<void>;
+}
+
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly baseUrl: string;
@@ -39,11 +54,15 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     this.baseUrl = this.configService.get('API_BASE_URL') || '';
     this.apiKey = this.configService.get('API_KEY') || '';
   }
-  private sock: ReturnType<typeof makeWASocket>;
+  private sock: ExtendedSocket;
   private state: AuthenticationState;
   private saveCreds: () => Promise<void>;
+  private store: {
+    chats: Map<string, any>;
+  } = {
+    chats: new Map(),
+  };
 
-  // Add properties to track connection status and QR code
   private connectionStatus: 'open' | 'close' | 'connecting' | 'unknown' =
     'unknown';
   private latestQRCode: string | null = null;
@@ -81,7 +100,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         this.latestQRCode = null;
       }
       if (connection === 'close') {
-        // Definisikan nilai status code yang Anda bandingkan
         const boomStatusCode = (lastDisconnect?.error as Boom).output
           ?.statusCode;
 
@@ -152,17 +170,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               if (msg.key.remoteJid && response.data?.message) {
                 await this.sock.sendMessage(msg.key.remoteJid, {
                   text: response.data.message,
+                  quoted: {
+                    key: {
+                      remoteJid: msg.key.remoteJid,
+                      participant: msg.key.participant,
+                      id: msg.key.id,
+                    },
+                    message: {
+                      conversation: response.data.message,
+                    },
+                  },
                 } as AnyRegularMessageContent);
                 try {
-                  if (!msg.key.participant) {
-                    await this.sock.sendMessage(msg.key.remoteJid, {
-                      delete: {
-                        remoteJid: msg.key.remoteJid,
-                        fromMe: true,
-                        id: msg.key.id,
-                      },
-                    });
-                  } else {
+                  if (!msg.key.fromMe) {
                     await this.sock.sendMessage(msg.key.remoteJid, {
                       delete: {
                         remoteJid: msg.key.remoteJid,
@@ -186,15 +206,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                     [msg.key.id as string], // Parameter 3: messageIds (array)
                     'read', // Parameter 4: type
                   );
-                  if (!msg.key.participant) {
-                    await this.sock.sendMessage(msg.key.remoteJid, {
-                      delete: {
-                        remoteJid: msg.key.remoteJid,
-                        fromMe: true,
-                        id: msg.key.id,
-                      },
-                    });
-                  } else {
+                  if (!msg.key.fromMe) {
                     await this.sock.sendMessage(msg.key.remoteJid, {
                       delete: {
                         remoteJid: msg.key.remoteJid,
@@ -213,12 +225,111 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         }
       })();
     });
+
+    this.sock.ev.on('messaging-history.set', ({ chats }) => {
+      this.store.chats = new Map(chats.map((chat) => [chat.id, chat]));
+      console.log('Got chats', this.store.chats.size);
+    });
+    this.sock.ev.on('chats.upsert', (chats) => {
+      for (const chat of chats) {
+        const chatId = typeof chat === 'string' ? chat : chat.id;
+        this.store.chats.set(chatId, chat);
+      }
+    });
   }
-  async sendMessage(jid: string, message: string) {
+  /**
+   * Kirim pesan WhatsApp ke nomor atau grup tertentu.
+   * @param jid JID penerima (nomor telepon atau ID grup).
+   * @param message Pesan yang akan dikirim.
+   * @param options Opsi tambahan untuk pesan, seperti quotedMessageId dan media.
+   * @returns Promise yang menyelesaikan dengan hasil pengiriman pesan.
+   */
+  async sendMessage(waMessageContent: WAMessageContent): Promise<any> {
     if (!this.sock) {
       throw new Error('WhatsApp socket not initialized');
     }
-    await this.sock.sendMessage(jid, { text: message });
+
+    try {
+      const normalizedJid = this.normalizeJid(waMessageContent.jid);
+      let content: AnyRegularMessageContent;
+
+      if (waMessageContent.options?.media) {
+        if (waMessageContent.options.media.type === 'image') {
+          content = {
+            image: waMessageContent.options.media.buffer,
+            caption: waMessageContent.message,
+          } as AnyRegularMessageContent;
+        } else if (waMessageContent.options.media.type === 'video') {
+          content = {
+            video: waMessageContent.options.media.buffer,
+            caption: waMessageContent.message,
+          } as AnyRegularMessageContent;
+        } else {
+          content = {
+            document: waMessageContent.options.media.buffer,
+            fileName: waMessageContent.options.media.filename || 'file',
+            caption: waMessageContent.message,
+          } as AnyRegularMessageContent;
+        }
+      } else {
+        content = {
+          text: waMessageContent.message,
+        } as AnyRegularMessageContent;
+      }
+
+      if (waMessageContent.options?.quotedMessageId) {
+        try {
+          const quoted = {
+            key: {
+              remoteJid: normalizedJid,
+              id: waMessageContent.options.quotedMessageId,
+              fromMe: false,
+            },
+            message: {
+              conversation:
+                waMessageContent.message.substring(0, 20) +
+                (waMessageContent.message.length > 20 ? '...' : ''),
+            },
+          };
+
+          (content as MessageContentWithQuote).quoted = quoted;
+        } catch (quoteError) {
+          console.error('Error setting quoted message:', quoteError);
+        }
+      }
+
+      const sentMsg = await this.sock.sendMessage(normalizedJid, content);
+      return sentMsg;
+    } catch (error) {
+      console.error('Error sending WhatsApp message:', error);
+      throw new Error(
+        `Failed to send WhatsApp message: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  normalizeJid(jid: string): string {
+    if (jid.includes('@')) {
+      return jid;
+    }
+
+    const privateJid = `${jid}@s.whatsapp.net`;
+    const groupJid = `${jid}@g.us`;
+
+    if (this.store.chats.has(privateJid)) {
+      return privateJid;
+    } else if (this.store.chats.has(groupJid)) {
+      return groupJid;
+    }
+
+    if (jid.includes('-')) {
+      return groupJid;
+    }
+    if (jid.length > 15) {
+      return groupJid;
+    }
+
+    return privateJid;
   }
 
   async onModuleDestroy() {
