@@ -31,7 +31,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly apiKey: string;
   constructor(private readonly configService: ConfigService) {
     this.baseUrl =
-      this.configService.get('API_BASE_URL') || 'http://localhost:3000';
+      this.configService.get('API_BASE_URL') || '';
     this.apiKey = this.configService.get('API_KEY') || '';
   }
   private sock: ReturnType<typeof makeWASocket>;
@@ -90,57 +90,69 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       void (async () => {
         if (m.messages) {
           for (const msg of m.messages) {
-            let messageText: string | undefined;
-            let mediaBuffer: Buffer | undefined;
-            let mediaType: string | undefined;
-
-            if (msg.message?.conversation) {
-              messageText = msg.message.conversation;
-            } else if (msg.message?.extendedTextMessage?.text) {
-              messageText = msg.message.extendedTextMessage.text;
-            } else if (msg.message?.imageMessage) {
-              messageText = msg.message.imageMessage.caption || '';
-              mediaType = 'image';
-              mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
-            } else if (msg.message?.videoMessage) {
-              messageText = msg.message.videoMessage.caption || '';
-              mediaType = 'video';
-              mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
-            } else if (msg.message?.documentMessage) {
-              messageText = msg.message.documentMessage.caption || '';
-              mediaType = 'document';
-              mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
-            }
-
-            const payload: OutgoingPayload = {
-              from: msg.key.remoteJid || undefined,
-              fromMe: msg.key.fromMe || undefined,
-              message: messageText,
-            };
-            if (!msg.key.fromMe) {
-              payload.fromMe = false;
-              payload.participant = msg.key.participant || undefined;
-            }
-            if (mediaBuffer && mediaType === 'image') {
-              payload.media = mediaBuffer.toString('base64');
-              payload.mediaType = mediaType;
-            }
-
             try {
+              let messageText: string | undefined;
+              let mediaBuffer: Buffer | undefined;
+              let mediaType: string | undefined;
+
+              if (msg.message?.conversation) {
+                messageText = msg.message.conversation;
+              } else if (msg.message?.extendedTextMessage?.text) {
+                messageText = msg.message.extendedTextMessage.text;
+              } else if (msg.message?.imageMessage) {
+                messageText = msg.message.imageMessage.caption || '';
+                mediaType = 'image';
+                mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+              } else if (msg.message?.videoMessage) {
+                messageText = msg.message.videoMessage.caption || '';
+                mediaType = 'video';
+                mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+              } else if (msg.message?.documentMessage) {
+                messageText = msg.message.documentMessage.caption || '';
+                mediaType = 'document';
+                mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+              }
+
+              const payload: OutgoingPayload = {
+                from: msg.key.remoteJid || undefined,
+                fromMe: msg.key.fromMe || undefined,
+                message: messageText,
+              };
+              if (!msg.key.fromMe) {
+                payload.fromMe = false;
+                payload.participant = msg.key.participant || undefined;
+              }
+              if (mediaBuffer && mediaType === 'image') {
+                payload.media = mediaBuffer.toString('base64');
+                payload.mediaType = mediaType;
+              }
+
               const response = await axios.post(this.baseUrl, payload, {
                 headers: {
                   'Content-Type': 'application/json',
                   'x-api-key': this.apiKey,
                 },
               });
-              if (msg.key.remoteJid && response.status !== 500) {
+              if (msg.key.remoteJid && response.data?.message) {
                 await this.sock.sendMessage(msg.key.remoteJid, {
                   text: response.data?.message,
                 });
+                await this.sock.sendMessage(msg.key.remoteJid, {
+                  delete: {
+                    remoteJid: msg.key.remoteJid,
+                    participant: msg.key.participant,
+                    fromMe: msg.key.fromMe,
+                    id: msg.key.id,
+                  },
+                });
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error sending message to API:', error);
-              if (msg.key.remoteJid && error.response.status !== 500) {
+              if (
+                msg.key &&
+                msg.key.remoteJid &&
+                error.response
+              ) {
                 await this.sock.sendMessage(msg.key.remoteJid, {
                   text: error.response.data?.message,
                 });

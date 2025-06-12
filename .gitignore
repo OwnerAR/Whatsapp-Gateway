@@ -3,6 +3,7 @@
 /node_modules
 /build
 /auth_info_baileys
+/whatsapp-gateway
 
 # Logs
 logs

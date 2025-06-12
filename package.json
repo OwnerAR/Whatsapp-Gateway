@@ -30,6 +30,7 @@
     "axios": "^1.9.0",
     "baileys": "github:WhiskeySockets/Baileys#v6.7.18",
     "canvas": "^3.1.0",
+    "javascript-obfuscator": "^4.1.1",
     "node-cache": "^5.1.2",
     "redis": "^5.5.6",
     "reflect-metadata": "^0.2.2",

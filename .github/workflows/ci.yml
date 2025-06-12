@@ -1,0 +1,51 @@
+# .github/workflows/ci.yml
+name: NestJS CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      API_KEY: ${{ secrets.API_KEY }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+    
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+        path: ~/.npm
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Lint
+      run: npm run lint
+
+    - name: Build
+      run: npm run build
+        # Tambahkan ke file ci.yml
+    - name: Run tests with mock WhatsApp
+      run: npm test -- --coverage --testPathIgnorePatterns=e2e
+
+    env:
+        NODE_ENV: test
+        SKIP_WHATSAPP_CONNECTION: true
+      
+    - name: Test
+      run: npm test
