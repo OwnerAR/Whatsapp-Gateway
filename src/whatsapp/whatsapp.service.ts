@@ -5,6 +5,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   downloadMediaMessage,
   AuthenticationState,
+  AnyRegularMessageContent,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as path from 'path';
@@ -28,7 +29,6 @@ interface OutgoingPayload {
 interface ApiResponse {
   message?: string;
   success?: boolean;
-  // tambahkan properti lain yang mungkin ada
 }
 
 @Injectable()
@@ -151,35 +151,56 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               );
               if (msg.key.remoteJid && response.data?.message) {
                 await this.sock.sendMessage(msg.key.remoteJid, {
-                  text: response.data.message || 'Message sent successfully',
-                  delete: {
-                    remoteJid: msg.key.remoteJid,
-                    fromMe: msg.key.fromMe,
-                    id: msg.key.id,
-                  },
-                });
-                await this.sock.sendReceipt(
-                  msg.key.remoteJid,
-                  msg.key.participant as string,
-                  [msg.key.id as string],
-                  'read',
-                );
+                  text: response.data.message,
+                } as AnyRegularMessageContent);
+                try {
+                  if (!msg.key.participant) {
+                    await this.sock.sendMessage(msg.key.remoteJid, {
+                      delete: {
+                        remoteJid: msg.key.remoteJid,
+                        fromMe: true,
+                        id: msg.key.id,
+                      },
+                    });
+                  } else {
+                    await this.sock.sendMessage(msg.key.remoteJid, {
+                      delete: {
+                        remoteJid: msg.key.remoteJid,
+                        participant: msg.key.participant,
+                        fromMe: false,
+                        id: msg.key.id,
+                      },
+                    });
+                  }
+                } catch (deleteError) {
+                  console.error('Error deleting message:', deleteError);
+                }
               }
             } catch (error: any) {
-              console.error('Error sending message to API:', error);
-              if (msg.key && msg.key.remoteJid && isAxiosError(error)) {
-                if (error && typeof error === 'object' && 'response' in error) {
-                  const errorResponse = error.response as {
-                    data?: { message?: string };
-                  };
-                  await this.sock.sendMessage(msg.key.remoteJid, {
-                    text: errorResponse.data?.message || 'Unknown error',
-                  });
-                } else {
-                  await this.sock.sendMessage(msg.key.remoteJid, {
-                    text: 'An error occurred while processing your message',
-                  });
+              if (isAxiosError(error)) {
+                console.error('Error sending message:', error.response?.data);
+                if (msg.key.remoteJid) {
+                  if (!msg.key.participant) {
+                    await this.sock.sendMessage(msg.key.remoteJid, {
+                      delete: {
+                        remoteJid: msg.key.remoteJid,
+                        fromMe: true,
+                        id: msg.key.id,
+                      },
+                    });
+                  } else {
+                    await this.sock.sendMessage(msg.key.remoteJid, {
+                      delete: {
+                        remoteJid: msg.key.remoteJid,
+                        participant: msg.key.participant,
+                        fromMe: false,
+                        id: msg.key.id,
+                      },
+                    });
+                  }
                 }
+              } else {
+                console.error('Unexpected error:', error);
               }
             }
           }
