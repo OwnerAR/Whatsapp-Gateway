@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { WhatsappService } from './whatsapp/whatsapp.service';
-import { WhatsappMessageService } from './whatsapp/whatsapp-message.service';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
 @Module({
   imports: [
@@ -13,7 +12,7 @@ import { WhatsappController } from './whatsapp/whatsapp.controller';
     }),
   ],
   controllers: [AppController, WhatsappController],
-  providers: [AppService, WhatsappService, WhatsappMessageService],
-  exports: [WhatsappService, WhatsappMessageService],
+  providers: [AppService, WhatsappService],
+  exports: [WhatsappService],
 })
 export class AppModule {}

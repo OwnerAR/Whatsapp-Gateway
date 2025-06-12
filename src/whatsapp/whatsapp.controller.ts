@@ -17,7 +17,8 @@ export class WhatsappController {
   async sendMessage(
     @Body() body: { jid: string; message: string },
   ): Promise<any> {
-    let { jid, message } = body;
+    const { message } = body;
+    let { jid } = body;
     if (!jid.includes('@')) {
       jid = jid + '@s.whatsapp.net';
     }

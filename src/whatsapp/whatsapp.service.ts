@@ -4,12 +4,13 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
   downloadMediaMessage,
+  AuthenticationState,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as path from 'path';
 import * as NodeCache from 'node-cache';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 
 const groupCache = new NodeCache();
 
@@ -24,6 +25,12 @@ interface OutgoingPayload {
   mediaType?: string;
 }
 
+interface ApiResponse {
+  message?: string;
+  success?: boolean;
+  // tambahkan properti lain yang mungkin ada
+}
+
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly baseUrl: string;
@@ -33,7 +40,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     this.apiKey = this.configService.get('API_KEY') || '';
   }
   private sock: ReturnType<typeof makeWASocket>;
-  private state: any;
+  private state: AuthenticationState;
   private saveCreds: () => Promise<void>;
 
   // Add properties to track connection status and QR code
@@ -61,7 +68,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       cachedGroupMetadata: async (jid) => groupCache.get(jid),
     });
 
-    this.sock.ev.on('creds.update', this.saveCreds);
+    this.sock.ev.on('creds.update', () => {
+      void this.saveCreds();
+    });
 
     this.sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
@@ -72,15 +81,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
         this.latestQRCode = null;
       }
       if (connection === 'close') {
+        // Definisikan nilai status code yang Anda bandingkan
+        const boomStatusCode = (lastDisconnect?.error as Boom).output
+          ?.statusCode;
+
         this.connectionStatus = connection;
         const shouldReconnect =
-          (lastDisconnect?.error as Boom)?.output?.statusCode !==
-          DisconnectReason.loggedOut;
+          typeof boomStatusCode === 'number' &&
+          boomStatusCode !== (DisconnectReason.loggedOut as number);
         if (shouldReconnect) {
           void this.onModuleInit();
         }
       } else if (connection) {
-        this.connectionStatus = connection as any; // Cast to any to handle other connection states
+        this.connectionStatus = connection; // Cast to any to handle other connection states
       }
     });
 
@@ -126,29 +139,35 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                 payload.mediaType = mediaType;
               }
 
-              const response = await axios.post(this.baseUrl, payload, {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': this.apiKey,
+              const response = await axios.post<ApiResponse>(
+                this.baseUrl,
+                payload,
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': this.apiKey,
+                  },
                 },
-              });
+              );
               if (msg.key.remoteJid && response.data?.message) {
                 await this.sock.sendMessage(msg.key.remoteJid, {
-                  text: response.data?.message,
-                });
-                await this.sock.sendMessage(msg.key.remoteJid, {
+                  text: response.data.message || 'Message sent successfully',
                   delete: {
                     remoteJid: msg.key.remoteJid,
-                    participant: msg.key.participant,
                     fromMe: msg.key.fromMe,
                     id: msg.key.id,
                   },
                 });
+                await this.sock.sendReceipt(
+                  msg.key.remoteJid,
+                  msg.key.participant as string,
+                  [msg.key.id as string],
+                  'read',
+                );
               }
             } catch (error: any) {
               console.error('Error sending message to API:', error);
-              if (msg.key && msg.key.remoteJid) {
-                // Type guard untuk mengakses response dengan aman
+              if (msg.key && msg.key.remoteJid && isAxiosError(error)) {
                 if (error && typeof error === 'object' && 'response' in error) {
                   const errorResponse = error.response as {
                     data?: { message?: string };

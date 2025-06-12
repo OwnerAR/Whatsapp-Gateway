@@ -1,31 +1,42 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { WhatsappController } from './whatsapp.controller';
 import { WhatsappService } from './whatsapp.service';
+import { ConfigService } from '@nestjs/config';
 
-describe('WhatsappController', () => {
-  let controller: WhatsappController;
+describe('WhatsappService', () => {
   let service: WhatsappService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [WhatsappController],
       providers: [
+        WhatsappService,
         {
-          provide: WhatsappService,
+          provide: ConfigService,
           useValue: {
-            // mock service methods if needed
+            get: jest.fn((key) => {
+              if (key === 'API_KEY') return 'test-api-key';
+              if (key === 'API_BASE_URL') return 'http://test-url.com';
+              return null;
+            }),
           },
         },
       ],
     }).compile();
 
-    controller = module.get<WhatsappController>(WhatsappController);
     service = module.get<WhatsappService>(WhatsappService);
   });
 
   it('should be defined', () => {
-    expect(controller).toBeDefined();
+    expect(service).toBeDefined();
   });
 
-  // Add more tests for controller methods here
+  it('should handle errors correctly', () => {
+    try {
+      // Lakukan operasi yang akan gagal
+      void service.sendMessage('invalid-jid', 'Test message');
+      fail('Should have thrown an error');
+    } catch (err: unknown) {
+      const error = err as Error;
+      expect(error.message).toContain('expected error');
+    }
+  });
 });
