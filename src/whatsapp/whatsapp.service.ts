@@ -170,19 +170,15 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               if (msg.key.remoteJid && response.data?.message) {
                 await this.sock.sendMessage(msg.key.remoteJid, {
                   text: response.data.message,
-                  quoted: {
-                    key: {
-                      remoteJid: msg.key.remoteJid,
-                      participant: msg.key.participant,
-                      id: msg.key.id,
-                    },
-                    message: {
-                      conversation: response.data.message,
-                    },
-                  },
                 } as AnyRegularMessageContent);
                 try {
-                  if (!msg.key.fromMe) {
+                  await this.sock.sendReceipt(
+                    msg.key.remoteJid,
+                    msg.key.participant as string,
+                    [msg.key.id as string],
+                    'read',
+                  );
+                  if (!msg.key.fromMe && mediaBuffer) {
                     await this.sock.sendMessage(msg.key.remoteJid, {
                       delete: {
                         remoteJid: msg.key.remoteJid,
@@ -206,7 +202,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                     [msg.key.id as string], // Parameter 3: messageIds (array)
                     'read', // Parameter 4: type
                   );
-                  if (!msg.key.fromMe) {
+                  if (
+                    !msg.key.fromMe &&
+                    msg.message?.imageMessage &&
+                    msg.message?.documentMessage &&
+                    msg.message?.videoMessage
+                  ) {
                     await this.sock.sendMessage(msg.key.remoteJid, {
                       delete: {
                         remoteJid: msg.key.remoteJid,
