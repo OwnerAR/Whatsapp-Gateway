@@ -180,6 +180,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               if (isAxiosError(error)) {
                 console.error('Error sending message:', error.response?.data);
                 if (msg.key.remoteJid) {
+                  await this.sock.sendReceipt(
+                    msg.key.remoteJid, // Parameter 1: jid
+                    msg.key.participant as string, // Parameter 2: participant
+                    [msg.key.id as string], // Parameter 3: messageIds (array)
+                    'read', // Parameter 4: type
+                  );
                   if (!msg.key.participant) {
                     await this.sock.sendMessage(msg.key.remoteJid, {
                       delete: {
