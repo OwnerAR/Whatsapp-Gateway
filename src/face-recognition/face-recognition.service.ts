@@ -29,10 +29,16 @@ export class FaceRecognitionService implements OnModuleInit {
     const targetDescriptor = await this.recognizeFace(targetBuffer);
 
     if (!referenceDescriptor || !targetDescriptor) {
-      return { match: false, message: 'Face not detected in one or both images' };
+      return {
+        match: false,
+        message: 'Face not detected in one or both images',
+      };
     }
 
-    const distance = this.euclideanDistance(referenceDescriptor, targetDescriptor);
+    const distance = this.euclideanDistance(
+      referenceDescriptor,
+      targetDescriptor,
+    );
     const threshold = 0.6;
 
     return {
@@ -51,7 +57,10 @@ export class FaceRecognitionService implements OnModuleInit {
 
   private async recognizeFace(imageBuffer: Buffer) {
     const img = await canvas.loadImage(imageBuffer);
-    const detection = await faceapi.detectSingleFace(img as any).withFaceLandmarks().withFaceDescriptor();
+    const detection = await faceapi
+      .detectSingleFace(img as any)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
     if (!detection) {
       return null;
     }

@@ -4,7 +4,7 @@ import { FaceRecognitionService } from './face-recognition.service';
 
 describe('FaceRecognitionController', () => {
   let controller: FaceRecognitionController;
-  let service: FaceRecognitionService;
+  let _service: FaceRecognitionService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -19,8 +19,10 @@ describe('FaceRecognitionController', () => {
       ],
     }).compile();
 
-    controller = module.get<FaceRecognitionController>(FaceRecognitionController);
-    service = module.get<FaceRecognitionService>(FaceRecognitionService);
+    controller = module.get<FaceRecognitionController>(
+      FaceRecognitionController,
+    );
+    _service = module.get<FaceRecognitionService>(FaceRecognitionService);
   });
 
   it('should be defined', () => {

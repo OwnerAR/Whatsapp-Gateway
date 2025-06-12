@@ -3,14 +3,13 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
-  downloadMediaMessage
+  downloadMediaMessage,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as path from 'path';
 import * as NodeCache from 'node-cache';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import e from 'express';
 
 const groupCache = new NodeCache();
 
@@ -30,8 +29,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   constructor(private readonly configService: ConfigService) {
-    this.baseUrl =
-      this.configService.get('API_BASE_URL') || '';
+    this.baseUrl = this.configService.get('API_BASE_URL') || '';
     this.apiKey = this.configService.get('API_KEY') || '';
   }
   private sock: ReturnType<typeof makeWASocket>;
@@ -39,7 +37,8 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private saveCreds: () => Promise<void>;
 
   // Add properties to track connection status and QR code
-  private connectionStatus: 'open' | 'close' | 'connecting' | 'unknown' = 'unknown';
+  private connectionStatus: 'open' | 'close' | 'connecting' | 'unknown' =
+    'unknown';
   private latestQRCode: string | null = null;
 
   getConnectionStatus(): 'open' | 'close' | 'connecting' | 'unknown' {
@@ -75,9 +74,10 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       if (connection === 'close') {
         this.connectionStatus = connection;
         const shouldReconnect =
-          (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+          (lastDisconnect?.error as Boom)?.output?.statusCode !==
+          DisconnectReason.loggedOut;
         if (shouldReconnect) {
-          this.onModuleInit();
+          void this.onModuleInit();
         }
       } else if (connection) {
         this.connectionStatus = connection as any; // Cast to any to handle other connection states
@@ -86,7 +86,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
 
     this.sock.ev.on('messages.upsert', (m) => {
       if (m.type !== 'notify') return;
-      // Jalankan async function tanpa mengembalikan promise ke event handler
       void (async () => {
         if (m.messages) {
           for (const msg of m.messages) {
@@ -148,14 +147,20 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               }
             } catch (error: any) {
               console.error('Error sending message to API:', error);
-              if (
-                msg.key &&
-                msg.key.remoteJid &&
-                error.response
-              ) {
-                await this.sock.sendMessage(msg.key.remoteJid, {
-                  text: error.response.data?.message,
-                });
+              if (msg.key && msg.key.remoteJid) {
+                // Type guard untuk mengakses response dengan aman
+                if (error && typeof error === 'object' && 'response' in error) {
+                  const errorResponse = error.response as {
+                    data?: { message?: string };
+                  };
+                  await this.sock.sendMessage(msg.key.remoteJid, {
+                    text: errorResponse.data?.message || 'Unknown error',
+                  });
+                } else {
+                  await this.sock.sendMessage(msg.key.remoteJid, {
+                    text: 'An error occurred while processing your message',
+                  });
+                }
               }
             }
           }

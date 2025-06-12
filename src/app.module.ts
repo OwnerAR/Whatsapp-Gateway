@@ -6,9 +6,10 @@ import { WhatsappService } from './whatsapp/whatsapp.service';
 import { WhatsappMessageService } from './whatsapp/whatsapp-message.service';
 import { WhatsappController } from './whatsapp/whatsapp.controller';
 @Module({
-  imports: [ConfigModule.forRoot({
-    isGlobal: true,
-    envFilePath: '.env',
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
     }),
   ],
   controllers: [AppController, WhatsappController],

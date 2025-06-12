@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 describe('WhatsappService', () => {
   let service: WhatsappService;
-  
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -34,7 +34,7 @@ describe('WhatsappService', () => {
     // Implementasi test koneksi WhatsApp yang akan di-skip di CI
     expect(await service.getConnectionStatus()).toBe('open');
   });
-  
+
   // Test yang tidak memerlukan koneksi WhatsApp
   it('should process messages correctly', () => {
     // Implementasi test yang tidak memerlukan koneksi sebenarnya
