@@ -133,14 +133,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                 messageText = msg.message.imageMessage.caption || '';
                 mediaType = 'image';
                 mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
-              } else if (msg.message?.videoMessage) {
-                messageText = msg.message.videoMessage.caption || '';
-                mediaType = 'video';
-                mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
-              } else if (msg.message?.documentMessage) {
-                messageText = msg.message.documentMessage.caption || '';
-                mediaType = 'document';
-                mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
               }
 
               const payload: OutgoingPayload = {
@@ -178,7 +170,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                     [msg.key.id as string],
                     'read',
                   );
-                  if (!msg.key.fromMe && mediaBuffer) {
+                  if (!msg.key.fromMe && mediaType === 'image') {
                     await this.sock.sendMessage(msg.key.remoteJid, {
                       delete: {
                         remoteJid: msg.key.remoteJid,
