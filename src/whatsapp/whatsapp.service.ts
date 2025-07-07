@@ -194,21 +194,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                     [msg.key.id as string], // Parameter 3: messageIds (array)
                     'read', // Parameter 4: type
                   );
-                  if (
-                    !msg.key.fromMe &&
-                    msg.message?.imageMessage &&
-                    msg.message?.documentMessage &&
-                    msg.message?.videoMessage
-                  ) {
-                    await this.sock.sendMessage(msg.key.remoteJid, {
-                      delete: {
-                        remoteJid: msg.key.remoteJid,
-                        participant: msg.key.participant,
-                        fromMe: false,
-                        id: msg.key.id,
-                      },
-                    });
-                  }
                 }
               } else {
                 console.error('Unexpected error:', error);
